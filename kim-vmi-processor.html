@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIM VMI Quote Processor</title>
+
+    <!-- SheetJS Library for Excel file handling -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- PDF.js Library for PDF parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: #444;
+            margin-bottom: 15px;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .drop-zone.has-file {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone-text {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #444;
+            font-weight: 500;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+
+        .button-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .button-primary:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .button-secondary {
+            background: #e5e7eb;
+            color: #444;
+        }
+
+        .button-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .status-box {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .status-box.info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .status-box.success {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            color: #065f46;
+        }
+
+        .status-box.error {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #991b1b;
+        }
+
+        .status-box.warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .required {
+            color: #ef4444;
+        }
+
+        #categorization-section {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>KIM VMI Quote Processor</h1>
+        <p class="subtitle">Convert vendor quotes into P21-compatible import files</p>
+
+        <!-- File Upload Section -->
+        <div class="section">
+            <div class="section-title">1. Upload Quote Files <span class="required">*</span></div>
+
+            <div class="input-group">
+                <label for="costFile">Cost Quote (PDF or Excel):</label>
+                <div class="drop-zone" id="costDropZone">
+                    <div class="drop-zone-icon">📄</div>
+                    <div class="drop-zone-text">Drag & drop or click to select cost quote file</div>
+                    <div class="file-name" id="costFileName"></div>
+                </div>
+                <input type="file" id="costFile" accept=".pdf,.xlsx,.xls,.csv" style="display: none;">
+            </div>
+
+            <div class="input-group">
+                <label for="customerFile">Customer Quote (PDF or Excel):</label>
+                <div class="drop-zone" id="customerDropZone">
+                    <div class="drop-zone-icon">📄</div>
+                    <div class="drop-zone-text">Drag & drop or click to select customer quote file</div>
+                    <div class="file-name" id="customerFileName"></div>
+                </div>
+                <input type="file" id="customerFile" accept=".pdf,.xlsx,.xls,.csv" style="display: none;">
+            </div>
+        </div>
+
+        <!-- Order Details Section -->
+        <div class="section">
+            <div class="section-title">2. Order Details <span class="required">*</span></div>
+
+            <div class="input-group">
+                <label for="orderNumber">Order Number <span class="required">*</span></label>
+                <input type="text" id="orderNumber" placeholder="e.g., 554253WW">
+            </div>
+
+            <div class="input-group">
+                <label for="customerID">Customer ID <span class="required">*</span></label>
+                <input type="text" id="customerID" placeholder="e.g., 24151">
+            </div>
+        </div>
+
+        <!-- Categorization Section -->
+        <div class="section">
+            <div class="section-title">3. Categorization (Optional)</div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="useCategorization">
+                <label for="useCategorization">Split order by product categories</label>
+            </div>
+
+            <div id="categorization-section">
+                <div class="input-group">
+                    <label for="catFile">Categorization File (Excel):</label>
+                    <div class="drop-zone" id="catDropZone">
+                        <div class="drop-zone-icon">📊</div>
+                        <div class="drop-zone-text">Drag & drop or click to select categorization file</div>
+                        <div class="file-name" id="catFileName"></div>
+                    </div>
+                    <input type="file" id="catFile" accept=".xlsx,.xls" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Process Button -->
+        <div class="section">
+            <button class="button button-primary" id="processBtn" disabled>Process Quotes</button>
+            <button class="button button-secondary" id="clearBtn">Clear All</button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+
+        <!-- Status Messages -->
+        <div class="status-box" id="statusBox"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // GLOBAL STATE
+        // ==========================================
+        let state = {
+            costFile: null,
+            costData: null,
+            customerFile: null,
+            customerData: null,
+            catFile: null,
+            catData: null,
+            orderNumber: '',
+            customerID: ''
+        };
+
+        // ==========================================
+        // TEMPLATE STRUCTURES (from P21 templates)
+        // ==========================================
+        const TEMPLATES = {
+            header: [
+                'Import Set No', 'Customer ID', 'Customer Name', 'Company ID', 'Sales Location ID',
+                'Customer PO Number', 'Contact ID', 'Contact Name', 'Taker', 'Job Name',
+                'Order Date', 'Requested Date', 'Quote', 'Approved', 'Ship To ID',
+                'Ship To Name', 'Ship To Address 1', 'Ship To Address 2', 'Ship To City',
+                'Ship To State', 'Ship To Zip Code', 'Ship To Country', 'Source Location ID',
+                'Carrier ID', 'Carrier Name', 'Route', 'Packing Basis', 'Delivery Instructions',
+                'Terms', 'Terms Desc', 'Will Call', 'Class 1', 'Class 2', 'Class 3',
+                'Class 4', 'Class 5', 'RMA_Flag', 'Freight Code', 'Third Party Billing Flag Desc',
+                'Capture Usage Default', 'Allocate', 'Contract Number', 'Invoice Batch Number',
+                'Ship To Email Address', 'Set Invoice Exchange Rate Source Desc', 'Ship To Phone',
+                'Currency ID', 'Apply Builder Allowance Flag', 'Quote Expiration Date', 'Promise Date',
+                'Import As Quote', 'Quote Number', 'Web Reference\u00a0Number', 'Create Invoice',
+                'Strategic Pricing Library ID', 'Merchandise Credit', 'Order Type Priority',
+                'UPS\u00a0Code', 'Supplier Order No', 'Supplier Release No', 'Placed By Name',
+                'Req Payment Upon Release', 'Freight Out', 'Ship To Address', 'Quote Type\u00a0',
+                'Homeowner\u00a0', 'Installer', 'Building', 'Architect\u00a0', 'Designer\u00a0',
+                'Pricing Source', 'Ship to Latitude', 'Ship To Longitude', ' Exemption No', 'Order Number'
+            ],
+            line: [
+                'Import Set Number', 'Line No', 'Item ID', 'Unit Quantity', 'Unit of Measure',
+                'Unit Price', 'Extended Description', 'Source Location ID', 'Ship Location ID',
+                'Product Group ID', 'Supplier ID', 'Supplier Name', 'Required Date', 'Expedite Date',
+                'Will Call', 'Tax Item', 'OK to Interchange', 'Pricing Unit', 'Commission Cost',
+                'Other Cost', 'PO Cost', 'Disposition', 'Scheduled', 'Manual Price Override',
+                'Commission Cost Edited', 'Other Cost Edited', 'Capture Usage', 'Tag and Hold Class ID',
+                'Contract Bin ID', 'Contract No.', 'Allocation Qty', 'Promise Date', 'Revision Level',
+                'Resolve Item Contract', 'Sample', 'Quote Line No.', 'Quote Complete', 'Item Description',
+                'Invoice No.', 'Line No'
+            ],
+            salesrep: [
+                'Import Set No', 'Salesrep ID', 'Salesrep First Name', 'Salesrep MI',
+                'Salesrep Last Name', 'Primary Salesrep', 'Commission Split', 'Full Commission'
+            ],
+            remittance: [
+                'Import Set Number', 'Payment Type ID', 'Payment Amount', 'Payment Date',
+                'Payment Description', 'Check Number', 'CC Name', 'CC Number',
+                'Customer Verification Value', 'CC Expiration Date', 'CC Authorized Date',
+                'CC Authorized Number', 'Period', 'Year', 'Credit Number', 'Web Processing Center ID'
+            ]
+        };
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            setupDropZones();
+            setupEventListeners();
+        });
+
+        function setupDropZones() {
+            setupDropZone('costDropZone', 'costFile', 'costFileName');
+            setupDropZone('customerDropZone', 'customerFile', 'customerFileName');
+            setupDropZone('catDropZone', 'catFile', 'catFileName');
+        }
+
+        function setupDropZone(dropZoneId, inputId, fileNameId) {
+            const dropZone = document.getElementById(dropZoneId);
+            const fileInput = document.getElementById(inputId);
+            const fileNameDisplay = document.getElementById(fileNameId);
+
+            dropZone.addEventListener('click', () => fileInput.click());
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect(fileInput, dropZone, fileNameDisplay);
+                }
+            });
+
+            fileInput.addEventListener('change', () => {
+                handleFileSelect(fileInput, dropZone, fileNameDisplay);
+            });
+        }
+
+        function handleFileSelect(input, dropZone, fileNameDisplay) {
+            if (input.files.length > 0) {
+                const file = input.files[0];
+                fileNameDisplay.textContent = file.name;
+                dropZone.classList.add('has-file');
+
+                // Store file and try to extract order number
+                if (input.id === 'costFile') {
+                    state.costFile = file;
+                    tryExtractOrderNumber(file.name);
+                } else if (input.id === 'customerFile') {
+                    state.customerFile = file;
+                } else if (input.id === 'catFile') {
+                    state.catFile = file;
+                }
+
+                validateInputs();
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('useCategorization').addEventListener('change', (e) => {
+                const catSection = document.getElementById('categorization-section');
+                catSection.style.display = e.target.checked ? 'block' : 'none';
+            });
+
+            document.getElementById('orderNumber').addEventListener('input', (e) => {
+                state.orderNumber = e.target.value.trim();
+                validateInputs();
+            });
+
+            document.getElementById('customerID').addEventListener('input', (e) => {
+                state.customerID = e.target.value.trim();
+                validateInputs();
+            });
+
+            document.getElementById('processBtn').addEventListener('click', processQuotes);
+            document.getElementById('clearBtn').addEventListener('click', clearAll);
+        }
+
+        function tryExtractOrderNumber(fileName) {
+            // Extract order number from filename (e.g., "Order554253WW.pdf" -> "554253WW")
+            const match = fileName.match(/(\d{6}[A-Z]{2})/);
+            if (match) {
+                document.getElementById('orderNumber').value = match[1];
+                state.orderNumber = match[1];
+                validateInputs();
+            }
+        }
+
+        function validateInputs() {
+            const hasRequiredFiles = state.costFile && state.customerFile;
+            const hasRequiredFields = state.orderNumber && state.customerID;
+            const processBtn = document.getElementById('processBtn');
+            processBtn.disabled = !(hasRequiredFiles && hasRequiredFields);
+        }
+
+        function clearAll() {
+            // Reset state
+            state = {
+                costFile: null,
+                costData: null,
+                customerFile: null,
+                customerData: null,
+                catFile: null,
+                catData: null,
+                orderNumber: '',
+                customerID: ''
+            };
+
+            // Reset form
+            document.getElementById('costFile').value = '';
+            document.getElementById('customerFile').value = '';
+            document.getElementById('catFile').value = '';
+            document.getElementById('orderNumber').value = '';
+            document.getElementById('customerID').value = '';
+            document.getElementById('useCategorization').checked = false;
+
+            // Reset drop zones
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.classList.remove('has-file');
+            });
+            document.querySelectorAll('.file-name').forEach(name => {
+                name.textContent = '';
+            });
+
+            // Hide sections
+            document.getElementById('categorization-section').style.display = 'none';
+            hideStatus();
+            hideProgress();
+
+            validateInputs();
+        }
+
+        // ==========================================
+        // STATUS & PROGRESS
+        // ==========================================
+        function showStatus(message, type = 'info') {
+            const statusBox = document.getElementById('statusBox');
+            statusBox.textContent = message;
+            statusBox.className = `status-box ${type}`;
+            statusBox.style.display = 'block';
+        }
+
+        function hideStatus() {
+            document.getElementById('statusBox').style.display = 'none';
+        }
+
+        function showProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressBarFill = document.getElementById('progressBarFill');
+            progressBar.style.display = 'block';
+            progressBarFill.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            document.getElementById('progressBar').style.display = 'none';
+            document.getElementById('progressBarFill').style.width = '0%';
+        }
+
+        // ==========================================
+        // MAIN PROCESSING
+        // ==========================================
+        async function processQuotes() {
+            try {
+                showStatus('Processing quotes...', 'info');
+                showProgress(0);
+
+                // Step 1: Import cost file
+                showStatus('Reading cost quote file...', 'info');
+                showProgress(15);
+                state.costData = await importQuoteFile(state.costFile);
+
+                // Step 2: Import customer file
+                showStatus('Reading customer quote file...', 'info');
+                showProgress(30);
+                state.customerData = await importQuoteFile(state.customerFile);
+
+                // Step 3: Merge data
+                showStatus('Merging cost and customer pricing...', 'info');
+                showProgress(45);
+                const mergedData = mergeQuotes(state.costData, state.customerData);
+
+                // Step 4: Load categorization if needed
+                const useCat = document.getElementById('useCategorization').checked;
+                if (useCat && state.catFile) {
+                    showStatus('Loading categorization data...', 'info');
+                    showProgress(55);
+                    state.catData = await loadCategorizationFile(state.catFile);
+                }
+
+                // Step 5: Process and generate files
+                showStatus('Generating P21 import files...', 'info');
+                showProgress(70);
+
+                if (useCat && state.catData) {
+                    await processWithCategories(mergedData);
+                } else {
+                    await processSingleOrder(mergedData, state.orderNumber, '');
+                }
+
+                // Complete
+                showProgress(100);
+                showStatus('Success! P21 import files have been generated and downloaded.', 'success');
+
+            } catch (error) {
+                console.error('Processing error:', error);
+                showStatus('Error: ' + error.message, 'error');
+                hideProgress();
+            }
+        }
+
+        // ==========================================
+        // FILE IMPORT FUNCTIONS
+        // ==========================================
+        async function importQuoteFile(file) {
+            const fileExt = file.name.split('.').pop().toLowerCase();
+
+            if (fileExt === 'pdf') {
+                return await importPDFFile(file);
+            } else {
+                return await importExcelFile(file);
+            }
+        }
+
+        async function importPDFFile(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+
+            let allText = '';
+
+            // Extract text from all pages
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                allText += pageText + '\n';
+            }
+
+            // Parse the text into structured data
+            return parsePDFText(allText);
+        }
+
+        function parsePDFText(text) {
+            // Split into lines
+            const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+            const items = [];
+            let i = 0;
+
+            // Find the start of the table (look for "Item" header)
+            while (i < lines.length) {
+                if (lines[i].toLowerCase().includes('item')) {
+                    i++; // Skip header
+                    break;
+                }
+                i++;
+            }
+
+            // Parse data rows
+            while (i < lines.length) {
+                const line = lines[i];
+
+                // Check if line starts with a number (item number)
+                if (/^\d/.test(line)) {
+                    // Try to parse the line
+                    const parts = line.split(/\s+/);
+
+                    if (parts.length >= 4) {
+                        const itemNum = parts[0];
+                        const qty = parseFloat(parts[parts.length - 3]) || 0;
+                        const price = parseFloat(parts[parts.length - 2].replace(/[$,]/g, '')) || 0;
+                        const total = parseFloat(parts[parts.length - 1].replace(/[$,]/g, '')) || 0;
+
+                        // Description is everything in between
+                        const desc = parts.slice(1, parts.length - 3).join(' ');
+
+                        items.push({
+                            itemNumber: itemNum,
+                            description: desc,
+                            quantity: qty,
+                            price: price,
+                            uom: 'E',
+                            total: total
+                        });
+                    }
+                }
+                i++;
+            }
+
+            return items;
+        }
+
+        async function importExcelFile(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+            // Find header row (contains "Item")
+            let headerRow = -1;
+            for (let i = 0; i < Math.min(10, data.length); i++) {
+                const row = data[i];
+                if (row.some(cell => cell && cell.toString().toLowerCase().includes('item'))) {
+                    headerRow = i;
+                    break;
+                }
+            }
+
+            if (headerRow === -1) {
+                throw new Error('Could not find item table in Excel file');
+            }
+
+            // Parse data rows
+            const items = [];
+            for (let i = headerRow + 1; i < data.length; i++) {
+                const row = data[i];
+
+                // Skip empty rows
+                if (!row || row.length === 0 || !row[0]) continue;
+
+                // Check if first column looks like an item number
+                const firstCell = row[0].toString().trim();
+                if (!/^\d/.test(firstCell)) continue;
+
+                items.push({
+                    itemNumber: firstCell,
+                    description: row[1] ? row[1].toString().trim() : '',
+                    quantity: parseFloat(row[2]) || 0,
+                    price: parseFloat(row[3]) || 0,
+                    uom: 'E',
+                    total: parseFloat(row[4]) || 0
+                });
+            }
+
+            return items;
+        }
+
+        async function loadCategorizationFile(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+            const catMap = {};
+
+            // Parse all rows (first row might be data or header)
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                if (row && row.length >= 3 && row[0]) {
+                    let itemNum = row[0].toString().trim();
+                    // Remove " KIM" suffix if present for matching
+                    itemNum = itemNum.replace(/\s+KIM$/i, '');
+                    const category = row[2].toString().trim();
+                    catMap[itemNum] = category;
+                }
+            }
+
+            return catMap;
+        }
+
+        // ==========================================
+        // DATA MERGING
+        // ==========================================
+        function mergeQuotes(costData, customerData) {
+            const merged = [];
+
+            // Create lookup map for customer prices
+            const customerPriceMap = {};
+            customerData.forEach(item => {
+                customerPriceMap[item.itemNumber] = item.price;
+            });
+
+            // Merge data
+            costData.forEach(costItem => {
+                const customerPrice = customerPriceMap[costItem.itemNumber] || 0;
+
+                merged.push({
+                    itemNumber: costItem.itemNumber,
+                    description: costItem.description,
+                    quantity: costItem.quantity,
+                    costPrice: costItem.price,
+                    customerPrice: customerPrice,
+                    uom: costItem.uom
+                });
+            });
+
+            return merged;
+        }
+
+        // ==========================================
+        // CATEGORIZATION PROCESSING
+        // ==========================================
+        async function processWithCategories(mergedData) {
+            // Group items by category
+            const categories = {};
+
+            mergedData.forEach(item => {
+                const itemNum = item.itemNumber;
+                let category = state.catData[itemNum] || '740-Supplies'; // Default category
+
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+                categories[category].push(item);
+            });
+
+            // Generate files for each category
+            let categoryCount = 0;
+            for (const [category, items] of Object.entries(categories)) {
+                const categoryCode = extractCategoryCode(category);
+                await processSingleOrder(items, state.orderNumber, categoryCode);
+                categoryCount++;
+            }
+
+            showStatus(`Generated files for ${categoryCount} categories`, 'success');
+        }
+
+        function extractCategoryCode(category) {
+            // Extract "742" from "742-Fasteners"
+            const match = category.match(/^(\d+)/);
+            return match ? match[1] : '';
+        }
+
+        // ==========================================
+        // P21 FILE GENERATION
+        // ==========================================
+        async function processSingleOrder(itemsData, orderNum, categoryCode) {
+            const suffix = categoryCode ? `-${categoryCode}` : '';
+            const importSetNo = orderNum + suffix;
+
+            // Generate all 4 files
+            generateHeaderFile(importSetNo, itemsData);
+            generateLineFile(importSetNo, itemsData);
+            generateSalesrepFile(importSetNo);
+            generateRemittanceFile(importSetNo);
+        }
+
+        function generateHeaderFile(importSetNo, itemsData) {
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Create worksheet with header row
+            const ws = XLSX.utils.aoa_to_sheet([TEMPLATES.header]);
+
+            // Add data row
+            const row = new Array(TEMPLATES.header.length).fill('');
+            row[0] = importSetNo;  // Import Set No
+            row[1] = state.customerID;  // Customer ID
+            row[2] = 'LINWOOD MINING';  // Customer Name
+
+            XLSX.utils.sheet_add_aoa(ws, [row], {origin: -1});
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Header');
+
+            // Generate and download file
+            const fileName = `${importSetNo}-header.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function generateLineFile(importSetNo, itemsData) {
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Create worksheet with header row
+            const ws = XLSX.utils.aoa_to_sheet([TEMPLATES.line]);
+
+            // Add data rows
+            itemsData.forEach((item, index) => {
+                const row = new Array(TEMPLATES.line.length).fill('');
+                row[0] = importSetNo;  // Import Set Number
+                row[1] = index + 1;  // Line No
+                row[2] = item.itemNumber + ' KIM';  // Item ID with KIM suffix
+                row[3] = item.quantity;  // Unit Quantity
+                row[4] = 'E';  // Unit of Measure
+                row[5] = item.customerPrice;  // Unit Price
+                row[6] = item.description;  // Extended Description
+                row[18] = item.costPrice;  // Commission Cost (column 19, index 18)
+                row[20] = item.costPrice;  // PO Cost (column 21, index 20)
+                row[23] = 'Y';  // Manual Price Override (column 24, index 23)
+
+                XLSX.utils.sheet_add_aoa(ws, [row], {origin: -1});
+            });
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Line');
+
+            // Generate and download file
+            const fileName = `${importSetNo}-line.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function generateSalesrepFile(importSetNo) {
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Create worksheet with header row
+            const ws = XLSX.utils.aoa_to_sheet([TEMPLATES.salesrep]);
+
+            // Add data row (mostly empty, just Import Set No)
+            const row = new Array(TEMPLATES.salesrep.length).fill('');
+            row[0] = importSetNo;  // Import Set No
+
+            XLSX.utils.sheet_add_aoa(ws, [row], {origin: -1});
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Salesrep');
+
+            // Generate and download file
+            const fileName = `${importSetNo}-salesrep.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function generateRemittanceFile(importSetNo) {
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+
+            // Create worksheet with header row
+            const ws = XLSX.utils.aoa_to_sheet([TEMPLATES.remittance]);
+
+            // Add data row (mostly empty, just Import Set Number)
+            const row = new Array(TEMPLATES.remittance.length).fill('');
+            row[0] = importSetNo;  // Import Set Number
+
+            XLSX.utils.sheet_add_aoa(ws, [row], {origin: -1});
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Remittance');
+
+            // Generate and download file
+            const fileName = `${importSetNo}-remittance.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+    </script>
+</body>
+</html>
