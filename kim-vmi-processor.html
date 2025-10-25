@@ -387,6 +387,16 @@
         // INITIALIZATION
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
+            // Check if libraries are loaded
+            if (typeof XLSX === 'undefined') {
+                showStatus('Error: SheetJS library failed to load. Please check your internet connection.', 'error');
+                console.error('XLSX library not loaded');
+            }
+            if (typeof pdfjsLib === 'undefined') {
+                showStatus('Error: PDF.js library failed to load. Please check your internet connection.', 'error');
+                console.error('PDF.js library not loaded');
+            }
+
             setupDropZones();
             setupEventListeners();
         });
@@ -614,21 +624,39 @@
         }
 
         async function importPDFFile(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+            try {
+                console.log('Reading PDF file:', file.name);
 
-            let allText = '';
+                if (typeof pdfjsLib === 'undefined') {
+                    throw new Error('PDF.js library is not loaded. Please refresh the page and ensure you have internet access.');
+                }
 
-            // Extract text from all pages
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                allText += pageText + '\n';
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+
+                console.log('PDF loaded, pages:', pdf.numPages);
+
+                let allText = '';
+
+                // Extract text from all pages
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    allText += pageText + '\n';
+                }
+
+                console.log('Extracted text length:', allText.length, 'characters');
+
+                // Parse the text into structured data
+                const items = parsePDFText(allText);
+                console.log('Parsed', items.length, 'items from PDF');
+                return items;
+
+            } catch (error) {
+                console.error('Error reading PDF file:', error);
+                throw new Error('Failed to read PDF file "' + file.name + '": ' + error.message);
             }
-
-            // Parse the text into structured data
-            return parsePDFText(allText);
         }
 
         function parsePDFText(text) {
@@ -682,73 +710,103 @@
         }
 
         async function importExcelFile(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+            try {
+                console.log('Reading Excel file:', file.name);
 
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
-
-            // Find header row (contains "Item")
-            let headerRow = -1;
-            for (let i = 0; i < Math.min(10, data.length); i++) {
-                const row = data[i];
-                if (row.some(cell => cell && cell.toString().toLowerCase().includes('item'))) {
-                    headerRow = i;
-                    break;
+                if (typeof XLSX === 'undefined') {
+                    throw new Error('SheetJS library is not loaded. Please refresh the page and ensure you have internet access.');
                 }
+
+                const arrayBuffer = await file.arrayBuffer();
+                console.log('File loaded, size:', arrayBuffer.byteLength, 'bytes');
+
+                const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+                console.log('Workbook parsed, sheets:', workbook.SheetNames);
+
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+                console.log('Data extracted, rows:', data.length);
+
+                // Find header row (contains "Item")
+                let headerRow = -1;
+                for (let i = 0; i < Math.min(10, data.length); i++) {
+                    const row = data[i];
+                    if (row.some(cell => cell && cell.toString().toLowerCase().includes('item'))) {
+                        headerRow = i;
+                        break;
+                    }
+                }
+
+                if (headerRow === -1) {
+                    throw new Error('Could not find item table in Excel file');
+                }
+
+                // Parse data rows
+                const items = [];
+                for (let i = headerRow + 1; i < data.length; i++) {
+                    const row = data[i];
+
+                    // Skip empty rows
+                    if (!row || row.length === 0 || !row[0]) continue;
+
+                    // Check if first column looks like an item number
+                    const firstCell = row[0].toString().trim();
+                    if (!/^\d/.test(firstCell)) continue;
+
+                    items.push({
+                        itemNumber: firstCell,
+                        description: row[1] ? row[1].toString().trim() : '',
+                        quantity: parseFloat(row[2]) || 0,
+                        price: parseFloat(row[3]) || 0,
+                        uom: 'E',
+                        total: parseFloat(row[4]) || 0
+                    });
+                }
+
+                console.log('Parsed', items.length, 'items from Excel file');
+                return items;
+
+            } catch (error) {
+                console.error('Error reading Excel file:', error);
+                throw new Error('Failed to read Excel file "' + file.name + '": ' + error.message);
             }
-
-            if (headerRow === -1) {
-                throw new Error('Could not find item table in Excel file');
-            }
-
-            // Parse data rows
-            const items = [];
-            for (let i = headerRow + 1; i < data.length; i++) {
-                const row = data[i];
-
-                // Skip empty rows
-                if (!row || row.length === 0 || !row[0]) continue;
-
-                // Check if first column looks like an item number
-                const firstCell = row[0].toString().trim();
-                if (!/^\d/.test(firstCell)) continue;
-
-                items.push({
-                    itemNumber: firstCell,
-                    description: row[1] ? row[1].toString().trim() : '',
-                    quantity: parseFloat(row[2]) || 0,
-                    price: parseFloat(row[3]) || 0,
-                    uom: 'E',
-                    total: parseFloat(row[4]) || 0
-                });
-            }
-
-            return items;
         }
 
         async function loadCategorizationFile(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+            try {
+                console.log('Reading categorization file:', file.name);
 
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
-
-            const catMap = {};
-
-            // Parse all rows (first row might be data or header)
-            for (let i = 0; i < data.length; i++) {
-                const row = data[i];
-                if (row && row.length >= 3 && row[0]) {
-                    let itemNum = row[0].toString().trim();
-                    // Remove " KIM" suffix if present for matching
-                    itemNum = itemNum.replace(/\s+KIM$/i, '');
-                    const category = row[2].toString().trim();
-                    catMap[itemNum] = category;
+                if (typeof XLSX === 'undefined') {
+                    throw new Error('SheetJS library is not loaded. Please refresh the page and ensure you have internet access.');
                 }
-            }
 
-            return catMap;
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+                const catMap = {};
+
+                // Parse all rows (first row might be data or header)
+                for (let i = 0; i < data.length; i++) {
+                    const row = data[i];
+                    if (row && row.length >= 3 && row[0]) {
+                        let itemNum = row[0].toString().trim();
+                        // Remove " KIM" suffix if present for matching
+                        itemNum = itemNum.replace(/\s+KIM$/i, '');
+                        const category = row[2].toString().trim();
+                        catMap[itemNum] = category;
+                    }
+                }
+
+                console.log('Loaded', Object.keys(catMap).length, 'category mappings');
+                return catMap;
+
+            } catch (error) {
+                console.error('Error reading categorization file:', error);
+                throw new Error('Failed to read categorization file "' + file.name + '": ' + error.message);
+            }
         }
 
         // ==========================================
